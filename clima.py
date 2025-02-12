@@ -7,6 +7,9 @@ from matplotlib.figure import Figure
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 import time
 import pandas as pd
+from PIL import Image, ImageTk
+
+from io import BytesIO
 
 
 datos_historicos = []  
@@ -21,9 +24,11 @@ def obtener_datos_clima(ciudad):
         temperatura = datos["main"]["temp"]
         humedad = datos["main"]["humidity"]
         descripcion = datos["weather"][0]["description"]
-        return temperatura, humedad, descripcion
+        icono_codigo = datos["weather"][0]["icon"]  # Obtiene el código del icono
+        return temperatura, humedad, descripcion, icono_codigo
     else:
         return None
+
 
 
 def mostrar_clima():
@@ -35,20 +40,37 @@ def mostrar_clima():
 
     datos = obtener_datos_clima(ciudad)
     if datos:
-        temperatura, humedad, descripcion = datos
+        temperatura, humedad, descripcion, icono_codigo = datos
         resultado_var.set(
             f"Ciudad: {ciudad}\nTemperatura: {temperatura}°C\nHumedad: {humedad}%\nDescripción: {descripcion.capitalize()}"
         )
-       
+
+        mostrar_icono_clima(icono_codigo)  # Llamar a la función para mostrar el icono
+        
         tiempo_actual = time.strftime("%Y-%m-%d %H:%M:%S")
         datos_historicos.append([tiempo_actual, ciudad, temperatura, humedad, descripcion])
 
-      
         actualizar_grafico()
-
     else:
         messagebox.showerror("Error", "No se pudo obtener el clima. Verifica el nombre de la ciudad.")
 
+
+
+def mostrar_icono_clima(icono_codigo):
+    """Descarga y muestra el ícono del clima con mejor contraste."""
+    url_icono = f"http://openweathermap.org/img/wn/{icono_codigo}@2x.png"
+    response = requests.get(url_icono, stream=True)
+
+    if response.status_code == 200:
+        img = Image.open(response.raw).convert("RGBA")
+
+        # Crear un fondo oscuro y pegar la imagen encima para contraste
+        fondo = Image.new("RGBA", img.size, "black")  # O "gray"
+        img = Image.alpha_composite(fondo, img)
+
+        img = ImageTk.PhotoImage(img)
+        canvas_icono.create_image(30, 30, image=img)
+        canvas_icono.image = img  # Evita que la imagen sea eliminada por el recolector de basura
 
 def actualizar_grafico():
     """Actualiza el gráfico de temperatura."""
@@ -98,8 +120,12 @@ ciudad_entrada.pack(pady=5)
 tk.Button(ventana, text="Consultar Clima", command=mostrar_clima).pack(pady=10)
 
 
+
 resultado_var = tk.StringVar()
 tk.Label(ventana, textvariable=resultado_var, justify="left").pack(pady=10)
+# Canvas para ícono del clima
+canvas_icono = tk.Canvas(ventana, width=60, height=60)
+canvas_icono.pack(pady=5)
 
 fig = Figure(figsize=(7, 6), dpi=100)
 ax = fig.add_subplot(111)
